@@ -56,7 +56,7 @@ class TransformRunnerIT : TransformRestTestCase() {
         waitFor { assertTrue("Target transform index was not created", indexExists(transform.targetIndex)) }
 
         val metadata = waitFor {
-            val job = getTransform(transformId = transform.id)
+            val job = getTransform(transformId = "THIS_WILL_FAIL")
             assertNotNull("Transform job doesn't have metadata set", job.metadataId)
             val transformMetadata = getTransformMetadata(job.metadataId!!)
             assertEquals("Transform has not finished", TransformMetadata.Status.FINISHED, transformMetadata.status)
