@@ -7,27 +7,27 @@ on:
   push:
     branches:
       - "*"
-env:
-  GLOBAL_BUILD_ARGS: -Dopensearch.version=1.3.0-SNAPSHOT
 jobs:
   build:
     # Job name
     name: Build Index Management
+    env:
+      BUILD_ARGS: -Dopensearch.version=1.3.0-SNAPSHOT ${{matrix.os_build_args}}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            os_build_args: ${{ GLOBAL_BUILD_ARGS }}
+            # os_build_args: $GLOBAL_BUILD_ARGS
             working_directory: '.'
-            os_java_options: ''
+            # os_java_options: ''
           - os: windows-latest
-            os_build_args: ${{ GLOBAL_BUILD_ARGS }} -x integTest -x jacocoTestReport
+            os_build_args: -x integTest -x jacocoTestReport
             working_directory: 'X:'
             os_java_options: '-Xmx4096M'
           - os: macos-latest
-            os_build_args: ${{ GLOBAL_BUILD_ARGS }} -x integTest -x jacocoTestReport
+            os_build_args: -x integTest -x jacocoTestReport
             working_directory: '.'
-            os_java_options: ''
+            # os_java_options: ''
     runs-on: ${{ matrix.os }}
     steps:
       # This step uses the setup-java Github action: https://github.com/actions/setup-java
@@ -45,7 +45,7 @@ jobs:
         run: subst 'X:' .
       - name: Build with Gradle
         working-directory: ${{ matrix.working_directory }}
-        run: ./gradlew build ${{ matrix.os_build_args }}
+        run: ./gradlew build ${{ env.BUILD_ARGS }}
         env:
           _JAVA_OPTIONS: ${{ matrix.os_java_options }}
       - name: Upload failed logs
