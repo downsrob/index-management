@@ -7,13 +7,12 @@ on:
   push:
     branches:
       - "*"
-
+env:
+  GLOBAL_BUILD_ARGS: -Dopensearch.version=1.3.0-SNAPSHOT
 jobs:
   build:
     # Job name
     name: Build Index Management
-    env:
-      GLOBAL_BUILD_ARGS: -Dopensearch.version=1.3.0-SNAPSHOT
     strategy:
       matrix:
         include:
