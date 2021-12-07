@@ -17,15 +17,15 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            os_build_args: ${{ env.GLOBAL_BUILD_ARGS }}
+            os_build_args: ${ env.GLOBAL_BUILD_ARGS }
             working_directory: '.'
             os_java_options: ''
           - os: windows-latest
-            os_build_args: ${{ env.GLOBAL_BUILD_ARGS }} -x integTest -x jacocoTestReport
+            os_build_args: ${ env.GLOBAL_BUILD_ARGS } -x integTest -x jacocoTestReport
             working_directory: 'X:'
             os_java_options: '-Xmx4096M'
           - os: macos-latest
-            os_build_args: ${{ env.GLOBAL_BUILD_ARGS }} -x integTest -x jacocoTestReport
+            os_build_args: ${ env.GLOBAL_BUILD_ARGS } -x integTest -x jacocoTestReport
             working_directory: '.'
             os_java_options: ''
     runs-on: ${{ matrix.os }}
