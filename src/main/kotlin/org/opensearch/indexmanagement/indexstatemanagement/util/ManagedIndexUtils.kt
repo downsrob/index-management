@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-@file:Suppress("TooManyFunctions")
+@file:Suppress("TooManyFunctions", "MatchingDeclarationName")
 @file:JvmName("ManagedIndexUtils")
 package org.opensearch.indexmanagement.indexstatemanagement.util
 
@@ -281,21 +281,6 @@ fun State.getUpdatedStateMetaData(managedIndexMetaData: ManagedIndexMetaData): S
     }
 }
 
-fun Action.getUpdatedActionMetaData(managedIndexMetaData: ManagedIndexMetaData, state: State): ActionMetaData {
-    val stateMetaData = managedIndexMetaData.stateMetaData
-    val actionMetaData = managedIndexMetaData.actionMetaData
-
-    return when {
-        // start a new action
-        stateMetaData?.name != state.name ->
-            ActionMetaData(this.type, Instant.now().toEpochMilli(), this.actionIndex, false, 0, 0, null)
-        actionMetaData?.index != this.actionIndex ->
-            ActionMetaData(this.type, Instant.now().toEpochMilli(), this.actionIndex, false, 0, 0, null)
-        // RetryAPI will reset startTime to null for actionMetaData and we'll reset it to "now" here
-        else -> actionMetaData.copy(startTime = actionMetaData.startTime ?: Instant.now().toEpochMilli())
-    }
-}
-
 fun Action.shouldBackoff(actionMetaData: ActionMetaData?, actionRetry: ActionRetry?): Pair<Boolean, Long?>? {
     return this.configRetry?.backoff?.shouldBackoff(actionMetaData, actionRetry)
 }
@@ -332,7 +317,7 @@ fun ManagedIndexMetaData.getStartingManagedIndexMetaData(
     }
 
     val updatedStateMetaData = state.getUpdatedStateMetaData(this)
-    val updatedActionMetaData = action.getUpdatedActionMetaData(this, state)
+    val updatedActionMetaData = action.getUpdatedActionMetadata(this, state.name)
     val updatedStepMetaData = step.getStartingStepMetaData(this)
 
     return this.copy(
@@ -492,19 +477,35 @@ fun Action.isAllowed(allowList: List<String>): Boolean = allowList.contains(this
  *
  * log warning if remaining cluster state metadata has newer last_updated_time
  */
-fun isMetadataMoved(
+@Suppress("ReturnCount", "ComplexCondition", "ComplexMethod")
+fun checkMetadata(
     clusterStateMetadata: ManagedIndexMetaData?,
     configIndexMetadata: Any?,
+    currentIndexUuid: String?,
     logger: Logger
-): Boolean {
+): MetadataCheck {
+    // indexUuid saved in ISM metadata may be outdated
+    // if an index restored from snapshot
+    val indexUuid1 = clusterStateMetadata?.indexUuid
+    val indexUuid2 = when (configIndexMetadata) {
+        is ManagedIndexMetaData -> configIndexMetadata.indexUuid
+        is Map<*, *> -> configIndexMetadata["index_uuid"]
+        else -> null
+    } as String?
+    if ((indexUuid1 != null && indexUuid1 != currentIndexUuid) ||
+        (indexUuid2 != null && indexUuid2 != currentIndexUuid)
+    ) {
+        return MetadataCheck.CORRUPT
+    }
+
     if (clusterStateMetadata != null) {
-        if (configIndexMetadata == null) return false
+        if (configIndexMetadata == null) return MetadataCheck.PENDING
 
         // compare last updated time between 2 metadatas
         val t1 = clusterStateMetadata.stepMetaData?.startTime
         val t2 = when (configIndexMetadata) {
-            is ManagedIndexMetaData? -> configIndexMetadata.stepMetaData?.startTime
-            is Map<*, *>? -> {
+            is ManagedIndexMetaData -> configIndexMetadata.stepMetaData?.startTime
+            is Map<*, *> -> {
                 val stepMetadata = configIndexMetadata["step"] as Map<String, Any>?
                 stepMetadata?.get("start_time")
             }
@@ -514,7 +515,11 @@ fun isMetadataMoved(
             logger.warn("Cluster state metadata get updates after moved for [${clusterStateMetadata.index}]")
         }
     }
-    return true
+    return MetadataCheck.SUCCESS
+}
+
+enum class MetadataCheck {
+    PENDING, CORRUPT, SUCCESS
 }
 
 private val baseMessageLogger = LogManager.getLogger(BaseMessage::class.java)

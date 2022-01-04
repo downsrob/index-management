@@ -78,6 +78,10 @@ class IndexMetadataProvider(
         metadata
     }
 
+    fun getIndexMetadataWriteOverrideSettings(): List<String> {
+        return services.values.mapNotNull { it.getIndexMetadataWriteOverrideSetting() }
+    }
+
     companion object {
         const val EVALUATION_FAILURE_MESSAGE = "Matches restricted index pattern defined in the cluster setting"
         fun getTypeNotRecognizedMessage(indexType: String) = "Index type [type=$indexType] was not recognized when trying to get index metadata"

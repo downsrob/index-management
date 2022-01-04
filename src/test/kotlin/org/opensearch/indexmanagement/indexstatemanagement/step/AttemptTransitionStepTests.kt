@@ -64,7 +64,7 @@ class AttemptTransitionStepTests : OpenSearchTestCase() {
         val client = getClient(getAdminClient(getIndicesAdminClient(statsResponse, null)))
 
         runBlocking {
-            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, null, null)
+            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, null, null, null)
             val transitionsAction = TransitionsAction(listOf(Transition("some_state", Conditions(docCount = 5L))))
             val attemptTransitionStep = AttemptTransitionStep(transitionsAction)
             val context = StepContext(managedIndexMetadata, clusterService, client, null, null, scriptService, settings)
@@ -81,7 +81,7 @@ class AttemptTransitionStepTests : OpenSearchTestCase() {
         val client = getClient(getAdminClient(getIndicesAdminClient(null, exception)))
 
         runBlocking {
-            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, null, null)
+            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, null, null, null)
             val transitionsAction = TransitionsAction(listOf(Transition("some_state", Conditions(docCount = 5L))))
             val attemptTransitionStep = AttemptTransitionStep(transitionsAction)
             val context = StepContext(managedIndexMetadata, clusterService, client, null, null, scriptService, settings)
@@ -98,7 +98,7 @@ class AttemptTransitionStepTests : OpenSearchTestCase() {
         val client = getClient(getAdminClient(getIndicesAdminClient(null, exception)))
 
         runBlocking {
-            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, null, null)
+            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, null, null, null)
             val transitionsAction = TransitionsAction(listOf(Transition("some_state", Conditions(docCount = 5L))))
             val attemptTransitionStep = AttemptTransitionStep(transitionsAction)
             val context = StepContext(managedIndexMetadata, clusterService, client, null, null, scriptService, settings)
@@ -112,7 +112,7 @@ class AttemptTransitionStepTests : OpenSearchTestCase() {
     fun `test step start time resetting between two transitions`() {
         runBlocking {
             val completedStartTime = Instant.now()
-            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, StepMetaData("attempt_transition", completedStartTime.toEpochMilli(), Step.StepStatus.COMPLETED), null, null)
+            val managedIndexMetadata = ManagedIndexMetaData("test", "indexUuid", "policy_id", null, null, null, null, null, null, null, null, StepMetaData("attempt_transition", completedStartTime.toEpochMilli(), Step.StepStatus.COMPLETED), null, null)
             val transitionsAction = TransitionsAction(listOf(Transition("some_state", null)))
             val attemptTransitionStep = AttemptTransitionStep(transitionsAction)
             Thread.sleep(50) // Make sure we give enough time for the instants to be different

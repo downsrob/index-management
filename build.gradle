@@ -305,6 +305,8 @@ integTest {
     // TODO: raise issue in Core, this is because of the test framework
     if (System.getProperty("tests.clustername") != null) {
         exclude 'org/opensearch/indexmanagement/indexstatemanagement/MetadataRegressionIT.class'
+        exclude 'org/opensearch/indexmanagement/indexstatemanagement/resthandler/IndexStateManagementRestApiIT.class'
+        exclude 'org/opensearch/indexmanagement/indexstatemanagement/resthandler/ISMTemplateRestAPIIT.class'
     }
 
     // TODO: Remove me after refactoring all actions

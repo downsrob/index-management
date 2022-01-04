@@ -30,10 +30,14 @@ const val UPDATED_INDICES = "updated_indices"
 const val TOTAL_MANAGED_INDICES = "total_managed_indices"
 
 const val ISM_TEMPLATE_FIELD = "policy.ism_template"
+const val MANAGED_INDEX_FIELD = "managed_index"
+const val MANAGED_INDEX_NAME_FIELD = "$MANAGED_INDEX_FIELD.name"
+const val MANAGED_INDEX_INDEX_FIELD = "$MANAGED_INDEX_FIELD.index"
+const val MANAGED_INDEX_INDEX_UUID_FIELD = "$MANAGED_INDEX_FIELD.index_uuid"
 
 const val DEFAULT_PAGINATION_SIZE = 20
 const val DEFAULT_PAGINATION_FROM = 0
-const val DEFAULT_JOB_SORT_FIELD = "managed_index.index"
+const val DEFAULT_JOB_SORT_FIELD = MANAGED_INDEX_INDEX_FIELD
 const val DEFAULT_POLICY_SORT_FIELD = "policy.policy_id.keyword"
 const val DEFAULT_SORT_ORDER = "asc"
 const val DEFAULT_QUERY_STRING = "*"
@@ -42,6 +46,7 @@ const val INDEX_HIDDEN = "index.hidden"
 const val INDEX_NUMBER_OF_SHARDS = "index.number_of_shards"
 const val INDEX_NUMBER_OF_REPLICAS = "index.number_of_replicas"
 
+const val TYPE_PARAM_KEY = "type"
 const val DEFAULT_INDEX_TYPE = "_default"
 
 fun buildInvalidIndexResponse(builder: XContentBuilder, failedIndices: List<FailedIndex>) {

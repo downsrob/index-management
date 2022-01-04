@@ -53,7 +53,6 @@ import org.opensearch.indexmanagement.indexstatemanagement.settings.ManagedIndex
 import org.opensearch.indexmanagement.indexstatemanagement.settings.ManagedIndexSettings.Companion.JOB_INTERVAL
 import org.opensearch.indexmanagement.indexstatemanagement.util.getCompletedManagedIndexMetaData
 import org.opensearch.indexmanagement.indexstatemanagement.util.getStartingManagedIndexMetaData
-import org.opensearch.indexmanagement.indexstatemanagement.util.getUpdatedActionMetaData
 import org.opensearch.indexmanagement.indexstatemanagement.util.hasDifferentJobInterval
 import org.opensearch.indexmanagement.indexstatemanagement.util.hasTimedOut
 import org.opensearch.indexmanagement.indexstatemanagement.util.hasVersionConflict
@@ -274,7 +273,7 @@ object ManagedIndexRunner :
         val action: Action? = state?.getActionToExecute(managedIndexMetaData.copy(user = policy.user, threadContext = threadPool.threadContext))
         val stepContext = StepContext(managedIndexMetaData, clusterService, client, null, null, scriptService, settings)
         val step: Step? = action?.getStepToExecute(stepContext)
-        val currentActionMetaData = action?.getUpdatedActionMetaData(managedIndexMetaData, state)
+        val currentActionMetaData = action?.getUpdatedActionMetadata(managedIndexMetaData, state.name)
 
         // If Index State Management is disabled and the current step is not null and safe to disable on
         // then disable the job and return early
@@ -514,6 +513,7 @@ object ManagedIndexRunner :
             policyPrimaryTerm = null,
             policyCompleted = false,
             rolledOver = false,
+            indexCreationDate = getIndexCreationDate(managedIndexConfig),
             transitionTo = null,
             stateMetaData = null,
             actionMetaData = null,
@@ -541,6 +541,7 @@ object ManagedIndexRunner :
                 policyPrimaryTerm = policy.primaryTerm,
                 policyCompleted = false,
                 rolledOver = false,
+                indexCreationDate = getIndexCreationDate(managedIndexConfig),
                 transitionTo = null,
                 stateMetaData = stateMetaData,
                 actionMetaData = null,
@@ -794,5 +795,23 @@ object ManagedIndexRunner :
             }
             Instant.ofEpochMilli(requireNotNull(startTime))
         }
+    }
+
+    /**
+     * Get the index creation date for the first time to cache it on the ManagedIndexMetadata
+     */
+    @Suppress("ReturnCount")
+    private fun getIndexCreationDate(managedIndexConfig: ManagedIndexConfig): Long? {
+        try {
+            val metadata = clusterService.state().metadata()
+            // Check if this index is a hot/warm index in cluster state first
+            if (metadata.hasIndex(managedIndexConfig.index)) {
+                // TODO use MetadataIndexProvider
+                return metadata.index(managedIndexConfig.index).creationDate
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to get the index creation date", e)
+        }
+        return null
     }
 }

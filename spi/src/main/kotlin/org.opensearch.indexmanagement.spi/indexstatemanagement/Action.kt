@@ -10,9 +10,12 @@ import org.opensearch.common.io.stream.Writeable
 import org.opensearch.common.xcontent.ToXContent
 import org.opensearch.common.xcontent.ToXContentObject
 import org.opensearch.common.xcontent.XContentBuilder
+import org.opensearch.indexmanagement.spi.indexstatemanagement.model.ActionMetaData
 import org.opensearch.indexmanagement.spi.indexstatemanagement.model.ActionRetry
 import org.opensearch.indexmanagement.spi.indexstatemanagement.model.ActionTimeout
+import org.opensearch.indexmanagement.spi.indexstatemanagement.model.ManagedIndexMetaData
 import org.opensearch.indexmanagement.spi.indexstatemanagement.model.StepContext
+import java.time.Instant
 
 abstract class Action(
     val type: String,
@@ -48,6 +51,21 @@ abstract class Action(
         out.writeOptionalWriteable(configTimeout)
         out.writeOptionalWriteable(configRetry)
         populateAction(out)
+    }
+
+    fun getUpdatedActionMetadata(managedIndexMetaData: ManagedIndexMetaData, stateName: String): ActionMetaData {
+        val stateMetaData = managedIndexMetaData.stateMetaData
+        val actionMetaData = managedIndexMetaData.actionMetaData
+
+        return when {
+            // start a new action
+            stateMetaData?.name != stateName ->
+                ActionMetaData(this.type, Instant.now().toEpochMilli(), this.actionIndex, false, 0, 0, null)
+            actionMetaData?.index != this.actionIndex ->
+                ActionMetaData(this.type, Instant.now().toEpochMilli(), this.actionIndex, false, 0, 0, null)
+            // RetryAPI will reset startTime to null for actionMetaData and we'll reset it to "now" here
+            else -> actionMetaData.copy(startTime = actionMetaData.startTime ?: Instant.now().toEpochMilli())
+        }
     }
 
     /**
