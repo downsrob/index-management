@@ -9,6 +9,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse
 import org.opensearch.action.support.IndicesOptions
 import org.opensearch.client.Client
+import org.opensearch.cluster.metadata.IndexMetadata
 import org.opensearch.cluster.service.ClusterService
 import org.opensearch.common.unit.TimeValue
 import org.opensearch.indexmanagement.opensearchapi.suspendUntil
@@ -38,16 +39,20 @@ class DefaultIndexMetadataService(val customUUIDSetting: String? = null) : Index
 
         response.state.metadata.indices.forEach {
             // TODO waiting to add document count until it is definitely needed
-            val uuid = if (customUUIDSetting != null) {
-                it.value.settings.get(customUUIDSetting, it.value.indexUUID)
-            } else {
-                it.value.indexUUID
-            }
+            val uuid = getCustomIndexUUID(it.value)
             val indexMetadata = ISMIndexMetadata(uuid, it.value.creationDate, -1)
             indexNameToMetadata[it.key] = indexMetadata
         }
 
         return indexNameToMetadata
+    }
+
+    fun getCustomIndexUUID(indexMetadata: IndexMetadata): String {
+        return if (customUUIDSetting != null) {
+            indexMetadata.settings.get(customUUIDSetting, indexMetadata.indexUUID)
+        } else {
+            indexMetadata.indexUUID
+        }
     }
 
     override suspend fun getMetadataForAllIndices(client: Client, clusterService: ClusterService): Map<String, ISMIndexMetadata> {

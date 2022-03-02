@@ -311,7 +311,6 @@ integTest {
 
     // TODO: Remove me after refactoring all actions
     exclude 'org/opensearch/indexmanagement/indexstatemanagement/runner/*'
-    exclude 'org/opensearch/indexmanagement/indexstatemanagement/resthandler/*'
 }
 
 String bwcVersion = "1.13.2.0"

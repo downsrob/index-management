@@ -21,7 +21,6 @@ import org.opensearch.action.search.SearchRequest
 import org.opensearch.action.search.SearchResponse
 import org.opensearch.action.support.ActionFilters
 import org.opensearch.action.support.HandledTransportAction
-import org.opensearch.action.support.IndicesOptions
 import org.opensearch.action.support.master.AcknowledgedResponse
 import org.opensearch.client.node.NodeClient
 import org.opensearch.cluster.metadata.IndexMetadata
@@ -124,10 +123,13 @@ class TransportExplainAction @Inject constructor(
             )
             // Use the indexMetadataProvider to get the index names and uuids corresponding to this index type
             CoroutineScope(Dispatchers.IO).launch {
-                val indexNamesToGet = if (explainAll) listOf("*") else indices
                 val indexNameToMetadata: MutableMap<String, ISMIndexMetadata> = HashMap()
                 try {
-                    indexNameToMetadata.putAll(indexMetadataProvider.getISMIndexMetadataByType(request.indexType, indexNamesToGet))
+                    if (explainAll) {
+                        indexNameToMetadata.putAll(indexMetadataProvider.getAllISMIndexMetadataByType(request.indexType))
+                    } else {
+                        indexNameToMetadata.putAll(indexMetadataProvider.getISMIndexMetadataByType(request.indexType, indices))
+                    }
                 } catch (e: Exception) {
                     actionListener.onFailure(ExceptionsHelper.unwrapCause(e) as Exception)
                     return@launch
@@ -239,13 +241,11 @@ class TransportExplainAction @Inject constructor(
         fun getMetadata(indexNames: List<String>, threadContext: ThreadContext.StoredContext) {
             if (request.indexType == DEFAULT_INDEX_TYPE) {
                 val clusterStateRequest = ClusterStateRequest()
-                val strictExpandIndicesOptions = IndicesOptions.strictExpand()
                 clusterStateRequest.clear()
                     .indices(*indexNames.toTypedArray())
                     .metadata(true)
                     .local(request.local)
                     .masterNodeTimeout(request.masterTimeout)
-                    .indicesOptions(strictExpandIndicesOptions)
 
                 client.admin().cluster().state(
                     clusterStateRequest,
@@ -416,8 +416,8 @@ class TransportExplainAction @Inject constructor(
     }
 
     companion object {
-        private const val METADATA_MOVING_WARNING = "Managed index's metadata is pending migration."
-        private const val METADATA_CORRUPT_WARNING = "Managed index's metadata is corrupt, please use remove policy API to clean it."
+        const val METADATA_MOVING_WARNING = "Managed index's metadata is pending migration."
+        const val METADATA_CORRUPT_WARNING = "Managed index's metadata is corrupt, please use remove policy API to clean it."
         val metadataStatusToInfo = mapOf(
             MetadataCheck.PENDING to mapOf("message" to METADATA_MOVING_WARNING),
             MetadataCheck.CORRUPT to mapOf("message" to METADATA_CORRUPT_WARNING)

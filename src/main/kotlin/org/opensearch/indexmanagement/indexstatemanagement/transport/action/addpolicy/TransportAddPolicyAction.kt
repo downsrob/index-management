@@ -37,6 +37,7 @@ import org.opensearch.commons.ConfigConstants
 import org.opensearch.commons.authuser.User
 import org.opensearch.index.Index
 import org.opensearch.indexmanagement.IndexManagementPlugin.Companion.INDEX_MANAGEMENT_INDEX
+import org.opensearch.indexmanagement.indexstatemanagement.DefaultIndexMetadataService
 import org.opensearch.indexmanagement.indexstatemanagement.IndexMetadataProvider
 import org.opensearch.indexmanagement.indexstatemanagement.IndexMetadataProvider.Companion.EVALUATION_FAILURE_MESSAGE
 import org.opensearch.indexmanagement.indexstatemanagement.model.Policy
@@ -216,7 +217,8 @@ class TransportAddPolicyAction @Inject constructor(
                             override fun onResponse(response: ClusterStateResponse) {
                                 CoroutineScope(Dispatchers.IO).launch { removeClusterStateMetadatas(indicesToAdd.map { Index(it.value, it.key) }) }
 
-                                getUuidsForClosedIndices(response.state).forEach {
+                                val defaultIndexMetadataService = indexMetadataProvider.services[DEFAULT_INDEX_TYPE] as DefaultIndexMetadataService
+                                getUuidsForClosedIndices(response.state, defaultIndexMetadataService).forEach {
                                     failedIndices.add(FailedIndex(indicesToAdd[it] as String, it, "This index is closed"))
                                     indicesToAdd.remove(it)
                                 }

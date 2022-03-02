@@ -51,6 +51,9 @@ import org.opensearch.indexmanagement.indexstatemanagement.settings.ManagedIndex
 import org.opensearch.indexmanagement.indexstatemanagement.settings.ManagedIndexSettings.Companion.DEFAULT_JOB_INTERVAL
 import org.opensearch.indexmanagement.indexstatemanagement.settings.ManagedIndexSettings.Companion.INDEX_STATE_MANAGEMENT_ENABLED
 import org.opensearch.indexmanagement.indexstatemanagement.settings.ManagedIndexSettings.Companion.JOB_INTERVAL
+import org.opensearch.indexmanagement.indexstatemanagement.util.DEFAULT_INDEX_TYPE
+import org.opensearch.indexmanagement.indexstatemanagement.util.MetadataCheck
+import org.opensearch.indexmanagement.indexstatemanagement.util.checkMetadata
 import org.opensearch.indexmanagement.indexstatemanagement.util.getCompletedManagedIndexMetaData
 import org.opensearch.indexmanagement.indexstatemanagement.util.getStartingManagedIndexMetaData
 import org.opensearch.indexmanagement.indexstatemanagement.util.hasDifferentJobInterval
@@ -58,7 +61,6 @@ import org.opensearch.indexmanagement.indexstatemanagement.util.hasTimedOut
 import org.opensearch.indexmanagement.indexstatemanagement.util.hasVersionConflict
 import org.opensearch.indexmanagement.indexstatemanagement.util.isAllowed
 import org.opensearch.indexmanagement.indexstatemanagement.util.isFailed
-import org.opensearch.indexmanagement.indexstatemanagement.util.isMetadataMoved
 import org.opensearch.indexmanagement.indexstatemanagement.util.isSafeToChange
 import org.opensearch.indexmanagement.indexstatemanagement.util.isSuccessfulDelete
 import org.opensearch.indexmanagement.indexstatemanagement.util.managedIndexConfigIndexRequest
@@ -109,6 +111,7 @@ object ManagedIndexRunner :
     private lateinit var ismHistory: IndexStateManagementHistory
     private lateinit var skipExecFlag: SkipExecution
     private lateinit var threadPool: ThreadPool
+    private lateinit var indexMetadataProvider: IndexMetadataProvider
     private lateinit var extensionStatusChecker: ExtensionStatusChecker
     private var indexStateManagementEnabled: Boolean = DEFAULT_ISM_ENABLED
     @Suppress("MagicNumber")
@@ -187,6 +190,11 @@ object ManagedIndexRunner :
         return this
     }
 
+    fun registerIndexMetadataProvider(indexMetadataProvider: IndexMetadataProvider): ManagedIndexRunner {
+        this.indexMetadataProvider = indexMetadataProvider
+        return this
+    }
+
     fun registerExtensionChecker(extensionStatusChecker: ExtensionStatusChecker): ManagedIndexRunner {
         this.extensionStatusChecker = extensionStatusChecker
         return this
@@ -227,18 +235,35 @@ object ManagedIndexRunner :
             return
         }
 
-        // Get current IndexMetaData and ManagedIndexMetaData
-        val indexMetaData = getIndexMetadata(managedIndexConfig.index)
-        if (indexMetaData == null) {
-            logger.warn("Failed to retrieve IndexMetadata.")
+        val (managedIndexMetaData, getMetadataSuccess) = client.getManagedIndexMetadata(managedIndexConfig.indexUuid)
+        if (!getMetadataSuccess) {
+            logger.info("Failed to retrieve managed index metadata of index [${managedIndexConfig.index}] from config index, abort this run.")
             return
         }
-        val managedIndexMetaData = indexMetaData.getManagedIndexMetadata(client)
-        val clusterStateMetadata = indexMetaData.getManagedIndexMetadata()
 
-        if (!isMetadataMoved(clusterStateMetadata, managedIndexMetaData, logger)) {
-            logger.info("Skipping execution while pending migration of metadata for ${managedIndexConfig.jobName}")
-            return
+        var indexMetadata = getIndexMetadata(managedIndexConfig.index)
+        // The index uuids not matching can happen when two jobs share a name but have different index types
+        if (indexMetadata == null || indexMetadata.indexUUID != managedIndexConfig.indexUuid) {
+            indexMetadata = null
+            // If the cluster state/default index type didn't have an index with a matching name and uuid combination, try all other index types
+            val nonDefaultIndexTypes = indexMetadataProvider.services.keys.filter { it != DEFAULT_INDEX_TYPE }
+            val multiTypeIndexNameToMetaData =
+                indexMetadataProvider.getMultiTypeISMIndexMetadata(nonDefaultIndexTypes, listOf(managedIndexConfig.index))
+            val someTypeMatchedUuid = multiTypeIndexNameToMetaData.values.any {
+                it[managedIndexConfig.index]?.indexUuid == managedIndexConfig.indexUuid
+            }
+            // If no index types had an index with a matching name and uuid combination, return
+            if (!someTypeMatchedUuid) {
+                logger.warn("Failed to find IndexMetadata for ${managedIndexConfig.index}.")
+                return
+            }
+        } else {
+            val clusterStateMetadata = indexMetadata.getManagedIndexMetadata()
+            val metadataCheck = checkMetadata(clusterStateMetadata, managedIndexMetaData, managedIndexConfig.indexUuid, logger)
+            if (metadataCheck != MetadataCheck.SUCCESS) {
+                logger.info("Skipping execution while metadata status is $metadataCheck")
+                return
+            }
         }
 
         // If policy or managedIndexMetaData is null then initialize

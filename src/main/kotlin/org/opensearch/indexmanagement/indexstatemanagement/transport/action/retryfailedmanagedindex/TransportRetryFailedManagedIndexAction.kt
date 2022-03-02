@@ -35,6 +35,7 @@ import org.opensearch.commons.authuser.User
 import org.opensearch.index.Index
 import org.opensearch.index.IndexNotFoundException
 import org.opensearch.indexmanagement.IndexManagementPlugin.Companion.INDEX_MANAGEMENT_INDEX
+import org.opensearch.indexmanagement.indexstatemanagement.DefaultIndexMetadataService
 import org.opensearch.indexmanagement.indexstatemanagement.IndexMetadataProvider
 import org.opensearch.indexmanagement.indexstatemanagement.opensearchapi.buildMgetMetadataRequest
 import org.opensearch.indexmanagement.indexstatemanagement.opensearchapi.getManagedIndexMetadata
@@ -165,8 +166,10 @@ class TransportRetryFailedManagedIndexAction @Inject constructor(
                         clusterStateRequest,
                         object : ActionListener<ClusterStateResponse> {
                             override fun onResponse(response: ClusterStateResponse) {
+                                val defaultIndexMetadataService = indexMetadataProvider.services[DEFAULT_INDEX_TYPE] as DefaultIndexMetadataService
                                 response.state.metadata.indices.forEach {
-                                    indexUuidToIndexMetadata[it.value.indexUUID] = it.value
+                                    val indexUUID = defaultIndexMetadataService.getCustomIndexUUID(it.value)
+                                    indexUuidToIndexMetadata[indexUUID] = it.value
                                 }
                                 processResponse()
                             }

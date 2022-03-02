@@ -35,6 +35,7 @@ import org.opensearch.commons.ConfigConstants
 import org.opensearch.commons.authuser.User
 import org.opensearch.index.Index
 import org.opensearch.indexmanagement.IndexManagementPlugin
+import org.opensearch.indexmanagement.indexstatemanagement.DefaultIndexMetadataService
 import org.opensearch.indexmanagement.indexstatemanagement.IndexMetadataProvider
 import org.opensearch.indexmanagement.indexstatemanagement.model.ManagedIndexConfig
 import org.opensearch.indexmanagement.indexstatemanagement.model.Policy
@@ -225,7 +226,7 @@ class TransportChangePolicyAction @Inject constructor(
             val strictExpandOptions = IndicesOptions.strictExpand()
             val clusterStateRequest = ClusterStateRequest()
                 .clear()
-                .indices(*indicesToUpdate.values.toTypedArray())
+                .indices(*request.indices.toTypedArray())
                 .metadata(true)
                 .local(false)
                 .indicesOptions(strictExpandOptions)
@@ -236,9 +237,14 @@ class TransportChangePolicyAction @Inject constructor(
                     object : ActionListener<ClusterStateResponse> {
                         override fun onResponse(response: ClusterStateResponse) {
                             val clusterState = response.state
+                            val defaultIndexMetadataService = indexMetadataProvider.services[DEFAULT_INDEX_TYPE] as DefaultIndexMetadataService
                             clusterState.metadata.indices.forEach {
-                                indexUuidToIndexMetadata[it.value.indexUUID] = it.value
+                                val indexUUID = defaultIndexMetadataService.getCustomIndexUUID(it.value)
+                                indexUuidToIndexMetadata[indexUUID] = it.value
                             }
+                            // ISMIndexMetadata from the default index metadata service uses lenient expand, we want to use strict expand, filter
+                            // out the indices which are not also in the strict expand response
+                            indicesToUpdate.filter { indexUuidToIndexMetadata.containsKey(it.key) }
                             getManagedIndexMetadata()
                         }
 
