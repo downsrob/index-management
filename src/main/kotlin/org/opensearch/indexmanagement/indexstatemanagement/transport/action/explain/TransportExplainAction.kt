@@ -251,6 +251,7 @@ class TransportExplainAction @Inject constructor(
                     clusterStateRequest,
                     object : ActionListener<ClusterStateResponse> {
                         override fun onResponse(response: ClusterStateResponse) {
+                            println("cluster state response: $response")
                             val clusterStateIndexMetadatas = response.state.metadata.indices.associate { it.key to it.value }
                             getMetadataMap(clusterStateIndexMetadatas, threadContext)
                         }
@@ -293,6 +294,7 @@ class TransportExplainAction @Inject constructor(
             clusterStateIndexMetadatas: Map<IndexName, IndexMetadata>?,
             threadContext: ThreadContext.StoredContext
         ) {
+            println("clusterStateIndexMetadatas: $clusterStateIndexMetadatas")
             // cluster state response will not resist the sort order
             // so use the order from previous search result saved in indexNames
             for (indexName in indexNames) {
