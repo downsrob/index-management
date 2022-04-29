@@ -33,6 +33,7 @@ import org.opensearch.indexmanagement.util._ID
 import org.opensearch.indexmanagement.util._PRIMARY_TERM
 import org.opensearch.indexmanagement.util._SEQ_NO
 import org.opensearch.indexmanagement.waitFor
+import org.opensearch.jobscheduler.spi.LockModel
 import org.opensearch.jobscheduler.spi.schedule.IntervalSchedule
 import org.opensearch.rest.RestStatus
 import org.opensearch.test.OpenSearchTestCase
@@ -205,32 +206,55 @@ abstract class RollupRestTestCase : IndexManagementRestTestCase() {
     protected fun Rollup.toHttpEntity(): HttpEntity = StringEntity(toJsonString(), APPLICATION_JSON)
 
     protected fun updateRollupStartTime(update: Rollup, desiredStartTimeMillis: Long? = null) {
-        // Before updating start time of a job always make sure there are no unassigned shards that could cause the config
-        // index to move to a new node and negate this forced start
-        if (isMultiNode) {
-            waitFor {
-                try {
-                    client().makeRequest("GET", "_cluster/allocation/explain")
-                    fail("Expected 400 Bad Request when there are no unassigned shards to explain")
-                } catch (e: ResponseException) {
-                    assertEquals(RestStatus.BAD_REQUEST, e.response.restStatus())
+        for (retryCount in 1..5) {
+            val getLockEndpoint = ".opendistro-job-scheduler-lock/_doc/${LockModel.generateLockId(INDEX_MANAGEMENT_INDEX, update.id)}"
+            var initialLockTime = 0
+            try {
+                val getLockResponse = client().makeRequest("GET", getLockEndpoint)
+                initialLockTime = ((getLockResponse.asMap()["_source"] as Map<String, Object>)["lock_time"]) as Int
+            } catch (e: Exception) {}
+
+            // Before updating start time of a job always make sure there are no unassigned shards that could cause the config
+            // index to move to a new node and negate this forced start
+            if (isMultiNode) {
+                waitFor {
+                    try {
+                        client().makeRequest("GET", "_cluster/allocation/explain")
+                        fail("Expected 400 Bad Request when there are no unassigned shards to explain")
+                    } catch (e: ResponseException) {
+                        assertEquals(RestStatus.BAD_REQUEST, e.response.restStatus())
+                    }
                 }
             }
-        }
-        val intervalSchedule = (update.jobSchedule as IntervalSchedule)
-        val millis = Duration.of(intervalSchedule.interval.toLong(), intervalSchedule.unit).minusSeconds(2).toMillis()
-        val startTimeMillis = desiredStartTimeMillis ?: Instant.now().toEpochMilli() - millis
-        val waitForActiveShards = if (isMultiNode) "all" else "1"
-        val response = client().makeRequest(
-            "POST", "$INDEX_MANAGEMENT_INDEX/_update/${update.id}?wait_for_active_shards=$waitForActiveShards",
-            StringEntity(
-                "{\"doc\":{\"rollup\":{\"schedule\":{\"interval\":{\"start_time\":" +
-                    "\"$startTimeMillis\"}}}}}",
-                APPLICATION_JSON
+            val intervalSchedule = (update.jobSchedule as IntervalSchedule)
+            val millis = Duration.of(intervalSchedule.interval.toLong(), intervalSchedule.unit).minusSeconds(2).toMillis()
+            val startTimeMillis = desiredStartTimeMillis ?: Instant.now().toEpochMilli() - millis
+            val waitForActiveShards = if (isMultiNode) "all" else "1"
+            val response = client().makeRequest(
+                "POST", "$INDEX_MANAGEMENT_INDEX/_update/${update.id}?wait_for_active_shards=$waitForActiveShards",
+                StringEntity(
+                    "{\"doc\":{\"rollup\":{\"schedule\":{\"interval\":{\"start_time\":" +
+                        "\"$startTimeMillis\"}}}}}",
+                    APPLICATION_JSON
+                )
             )
-        )
 
-        assertEquals("Request failed", RestStatus.OK, response.restStatus())
+            assertEquals("Request failed", RestStatus.OK, response.restStatus())
+
+            for (i in 1..20) {
+                var updatedLockTime = -1
+                try {
+                    val getLockResponse = client().makeRequest("GET", getLockEndpoint)
+                    updatedLockTime = ((getLockResponse.asMap()["_source"] as Map<String, Object>)["lock_time"]) as Int
+                } catch (e: Exception) {}
+                if (updatedLockTime > initialLockTime) {
+                    return
+                } else {
+                    Thread.sleep(1000L)
+                }
+            }
+            logger.info("Going to retry starting again. On retry $retryCount")
+        }
     }
 
     protected fun updateSearchAllJobsClusterSetting(value: Boolean) {
