@@ -17,7 +17,6 @@ import org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_R
 import org.opensearch.common.settings.Settings
 import org.opensearch.common.unit.ByteSizeValue
 import org.opensearch.index.query.QueryBuilders
-import org.opensearch.indexmanagement.IndexManagementPlugin.Companion.INDEX_MANAGEMENT_INDEX
 import org.opensearch.indexmanagement.indexstatemanagement.IndexStateManagementRestTestCase
 import org.opensearch.indexmanagement.indexstatemanagement.model.Policy
 import org.opensearch.indexmanagement.indexstatemanagement.model.State
@@ -39,10 +38,6 @@ class ShrinkActionIT : IndexStateManagementRestTestCase() {
     @Suppress("UnusedPrivateMember")
     @Before
     private fun disableJobIndexShardRelocation() {
-        initializeManagedIndex()
-        // Shrink ITs would sometimes fail on multi node setups because of the job scheduler index being moved between nodes,
-        // descheduling the job
-        updateIndexSetting(INDEX_MANAGEMENT_INDEX, "routing.allocation.enable", "none")
         // When doing remote testing, the docker image seems to keep the disk free space very low, causing the shrink action
         // to not be able to find a node to shrink onto. Lowering these watermarks avoids that.
         val request = """

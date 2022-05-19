@@ -48,7 +48,9 @@ abstract class IndexManagementRestTestCase : ODFERestTestCase() {
     fun initializeManagedIndex() {
         if (!indexExists(IndexManagementPlugin.INDEX_MANAGEMENT_INDEX)) {
             val request = Request("PUT", "/${IndexManagementPlugin.INDEX_MANAGEMENT_INDEX}")
-            var entity = "{\"settings\": " + Strings.toString(Settings.builder().put(INDEX_HIDDEN, true).build())
+            // Disable allocation as the job index moving shards can cause missed executions
+            val indexSettings = Settings.builder().put(INDEX_HIDDEN, true).put("routing.allocation.enable", "new_primaries").build()
+            var entity = "{\"settings\": " + Strings.toString(indexSettings)
             entity += ",\"mappings\" : ${IndexManagementIndices.indexManagementMappings}}"
             request.setJsonEntity(entity)
             client().performRequest(request)
